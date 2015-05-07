@@ -41,8 +41,13 @@ func explicitHashKeys(shards []*kinesis.Shard) []*string {
 }
 
 // fanOutPutRecordInput transforms a PutRecordInput to a PutRecordsInput which sends the same data to all explicit hash keys specified.
-func fanOutPutRecordInput(c *kinesis.PutRecordInput, shards []*string) *kinesis.PutRecordsInput {
-	return nil
+func fanOutPutRecordInput(input *kinesis.PutRecordInput, keys []*string) *kinesis.PutRecordsInput {
+	var requests []*kinesis.PutRecordsRequestEntry
+	for _, key := range keys {
+		r := &kinesis.PutRecordsRequestEntry{Data: input.Data, ExplicitHashKey: key, /* PartitionKey */}
+		requests = append(requests, r)
+	}
+	return &kinesis.PutRecordsInput{Records: requests, StreamName: input.StreamName}
 }
 
 // PutRecord takes in kinesis.PutRecordInput request and sends it to all shards in the Kinesis stream.
