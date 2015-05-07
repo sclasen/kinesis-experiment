@@ -32,7 +32,12 @@ func gatherShards(c kinesisDescribeStream, streamName *string) ([]*kinesis.Shard
 
 // explicitHashKeys collects explicit hash keys for all provided shards.
 func explicitHashKeys(shards []*kinesis.Shard) []*string {
-	return make([]*string, 0)
+	var k []*string
+	for _, s := range shards {
+		// Shard.HashKeyRange.StaringHashKey and all intermediate values are required, so no need to check for existence.
+		k = append(k, s.HashKeyRange.StartingHashKey)
+	}
+	return k
 }
 
 // fanOutPutRecordInput transforms a PutRecordInput to a PutRecordsInput which sends the same data to all explicit hash keys specified.
