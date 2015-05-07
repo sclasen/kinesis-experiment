@@ -9,14 +9,14 @@ import (
 type kinesisDescribeStreamMock struct {
 	Index  int
 	err    error
-	Shards []*kinesis.Shard
+	Shards [][]*kinesis.Shard
 }
 
 func (c *kinesisDescribeStreamMock) DescribeStream(input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
-	s := []*kinesis.Shard{c.Shards[c.Index]}
+	s := c.Shards[c.Index]
 	c.Index++
 	m := c.Index < len(c.Shards)
 	d := kinesis.DescribeStreamOutput{
@@ -24,46 +24,67 @@ func (c *kinesisDescribeStreamMock) DescribeStream(input *kinesis.DescribeStream
 			HasMoreShards: &m,
 			Shards:        s,
 			StreamName:    input.StreamName,
-		}}
+		},
+	}
 	return &d, nil
 }
 
-func TestGatherShardsSingleCall(t *testing.T) {
-	name := "test stream"
-	id := "shard ID"
-	want := &kinesis.Shard{ShardID: &id}
-	s := []*kinesis.Shard{want}
-	input := kinesisDescribeStreamMock{Shards: s}
-	got, err := gatherShards(&input, &name)
-	if err != nil {
-		t.Error(err)
-	} else if len(got) != 1 || *got[0] != *want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-}
-
-func TestGatherShardsMultipleCalls(t *testing.T) {
-	name := "test stream"
+func TestGatherShards(t *testing.T) {
 	id1 := "shard ID 1"
 	id2 := "shard ID 2"
-	s1 := &kinesis.Shard{ShardID: &id1}
-	s2 := &kinesis.Shard{ShardID: &id2}
-	want := []*kinesis.Shard{s1, s2}
-	input := kinesisDescribeStreamMock{Shards: want}
-	got, err := gatherShards(&input, &name)
-	if err != nil {
-		t.Error(err)
-	} else if len(got) != 2 || *got[0] != *want[0] || *got[1] != *want[1] {
-		t.Errorf("got %v, want %v", got, want)
+	id3 := "shard ID 3"
+	id4 := "shard ID 4"
+	s1 := kinesis.Shard{ShardID: &id1}
+	s2 := kinesis.Shard{ShardID: &id2}
+	s3 := kinesis.Shard{ShardID: &id3}
+	s4 := kinesis.Shard{ShardID: &id4}
+	tests := []struct {
+		value    [][]*kinesis.Shard
+		expected []*kinesis.Shard
+		err      error
+	}{
+		{
+			// [[s1]]
+			[][]*kinesis.Shard{[]*kinesis.Shard{&s1}},
+			[]*kinesis.Shard{&s1},
+			nil,
+		},
+		{
+			// [[s1, s2]]
+			[][]*kinesis.Shard{[]*kinesis.Shard{&s1, &s2}},
+			[]*kinesis.Shard{&s1, &s2},
+			nil,
+		},
+		{
+			// [[s1], [s2, s3], [s4]]
+			[][]*kinesis.Shard{[]*kinesis.Shard{&s1}, []*kinesis.Shard{&s2, &s3}, []*kinesis.Shard{&s4}},
+			[]*kinesis.Shard{&s1, &s2, &s3, &s4},
+			nil,
+		},
+		{
+			// Error.
+			nil,
+			nil,
+			errors.New("simulated error"),
+		},
 	}
-}
 
-func TestGatherShardsFailure(t *testing.T) {
-	name := "test stream"
-	expect := errors.New("simulated failure")
-	input := kinesisDescribeStreamMock{err: expect}
-	if _, err := gatherShards(&input, &name); err == nil {
-		t.Error("expected %v, was %v", expect, err)
+	for _, tt := range tests {
+		name := "test stream"
+		input := kinesisDescribeStreamMock{Shards: tt.value, err: tt.err}
+		result, err := gatherShards(&input, &name)
+		if len(result) != len(tt.expected) {
+			t.Errorf("expected %v, was %v", tt.expected, result)
+		}
+		if err != tt.err {
+			t.Errorf("error condition: expected %v, was %v", tt.err, err)
+		}
+		for i, expected := range tt.expected {
+			shardResult := result[i]
+			if *shardResult != *expected {
+				t.Errorf("expected[%i] %v, was %v", i, *expected, *shardResult)
+			}
+		}
 	}
 }
 
