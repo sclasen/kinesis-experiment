@@ -30,3 +30,4 @@ src/github.com/tools
 src/golang.org/x
 src/github.com/awslabs
 src/github.com/vaughan0
+src/github.com/brettcannon/kinesis-experiment/kinesis-experiment
