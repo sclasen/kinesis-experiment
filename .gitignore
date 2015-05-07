@@ -25,3 +25,7 @@ _testmain.go
 
 #---------
 bin/
+src/github.com/kr
+src/github.com/tools
+src/golang.org/x
+src/github.com/awslabs
