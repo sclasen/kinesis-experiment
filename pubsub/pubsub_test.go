@@ -60,9 +60,10 @@ func TestGatherShardsMultipleCalls(t *testing.T) {
 
 func TestGatherShardsFailure(t *testing.T) {
 	n := "test stream"
-	i := kinesisDescribeStreamMock{err: errors.New("simulated failure")}
+	expect := errors.New("simulated failure")
+	i := kinesisDescribeStreamMock{err: expect}
 	if _, err := gatherShards(&i, &n); err == nil {
-		t.Error("got %v, want %v", nil, err)
+		t.Error("expected %v, was %v", expect, err)
 	}
 }
 
