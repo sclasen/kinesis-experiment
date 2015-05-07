@@ -29,12 +29,12 @@ func (c *kinesisDescribeStreamMock) DescribeStream(input *kinesis.DescribeStream
 }
 
 func TestGatherShardsSingleCall(t *testing.T) {
-	n := "test stream"
+	name := "test stream"
 	id := "shard ID"
 	want := &kinesis.Shard{ShardID: &id}
 	s := []*kinesis.Shard{want}
-	i := kinesisDescribeStreamMock{Shards: s}
-	got, err := gatherShards(&i, &n)
+	input := kinesisDescribeStreamMock{Shards: s}
+	got, err := gatherShards(&input, &name)
 	if err != nil {
 		t.Error(err)
 	} else if len(got) != 1 || *got[0] != *want {
@@ -43,14 +43,14 @@ func TestGatherShardsSingleCall(t *testing.T) {
 }
 
 func TestGatherShardsMultipleCalls(t *testing.T) {
-	n := "test stream"
+	name := "test stream"
 	id1 := "shard ID 1"
 	id2 := "shard ID 2"
 	s1 := &kinesis.Shard{ShardID: &id1}
 	s2 := &kinesis.Shard{ShardID: &id2}
 	want := []*kinesis.Shard{s1, s2}
-	i := kinesisDescribeStreamMock{Shards: want}
-	got, err := gatherShards(&i, &n)
+	input := kinesisDescribeStreamMock{Shards: want}
+	got, err := gatherShards(&input, &name)
 	if err != nil {
 		t.Error(err)
 	} else if len(got) != 2 || *got[0] != *want[0] || *got[1] != *want[1] {
@@ -59,10 +59,10 @@ func TestGatherShardsMultipleCalls(t *testing.T) {
 }
 
 func TestGatherShardsFailure(t *testing.T) {
-	n := "test stream"
+	name := "test stream"
 	expect := errors.New("simulated failure")
-	i := kinesisDescribeStreamMock{err: expect}
-	if _, err := gatherShards(&i, &n); err == nil {
+	input := kinesisDescribeStreamMock{err: expect}
+	if _, err := gatherShards(&input, &name); err == nil {
 		t.Error("expected %v, was %v", expect, err)
 	}
 }
@@ -72,11 +72,11 @@ func TestExplicitHashKeys(t *testing.T) {
 	k2 := "key 2"
 	k3 := "key 3"
 	want := []*string{&k1, &k2, &k3}
-	var i []*kinesis.Shard
+	var input []*kinesis.Shard
 	for _, k := range want {
-		i = append(i, &kinesis.Shard{HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: k, EndingHashKey: k}})
+		input = append(input, &kinesis.Shard{HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: k, EndingHashKey: k}})
 	}
-	got := explicitHashKeys(i)
+	got := explicitHashKeys(input)
 	if len(got) != len(want) {
 		t.Errorf("got %v, want %v", want, got)
 	}
