@@ -69,3 +69,32 @@ func PutRecord(c kinesisPubSub, input *kinesis.PutRecordInput) (*kinesis.PutReco
 	}
 	return c.PutRecords(p)
 }
+
+/*type kinesisBroadcast interface {
+	kinesisPubSub
+	GetShardIterator(*kinesis.GetShardIteratorInput) (*kinesis.GetShardIteratorOutput, error)
+	GetRecords(*kinesis.GetRecordsInput) (*kinesis.GetRecordsOutput, error)
+}
+
+// Broadcast takes records from the in stream and sends them to all shards in the out stream.
+// XXX This should probably be written as a goroutine with a specified query rate so that
+// ShardIterator objects can be reused during the 5 minute validity widow and the fanout is
+// continual instead of a manual call.
+func Broadcast(c kinesisBroadcast, in, out string) (*kinesis.PutRecordsOutput, error) {
+	var result kinesis.PutRecordsOutput
+	inShards, err := gatherShards(c, &in)
+	if err != nil {
+		return nil, err
+	}
+
+	//for _, s = range inShards {
+		// XXX c.GetShardIterator, but need some way to prevent rebroadcast of previously-seen messages.
+		// XXX c.GetRecords
+		// XXX for _, record := range records {
+			// XXX create kinesis.PutRecordInput
+			// XXX PutRecord(c, &putRecord)
+		//}
+	//}
+	// XXX put the records into the output
+	return &result, nil
+}*/
