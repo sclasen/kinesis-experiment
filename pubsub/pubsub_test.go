@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"bytes"
 	"errors"
 	"github.com/awslabs/aws-sdk-go/service/kinesis"
 	"testing"
@@ -105,5 +106,44 @@ func TestExplicitHashKeys(t *testing.T) {
 		if *got[index] != *want[index] {
 			t.Errorf("got[%i] == %v, want %v", index, *got[index], *want[index])
 		}
+	}
+}
+
+func TestFanOutPutRecordInput(t *testing.T) {
+	s := "stream name"
+	d := []byte("blob payload")
+	k1 := "key 1"
+	k2 := "key 2"
+	k3 := "key 3"
+	keys := []*string{&k1, &k2, &k3}
+	input := kinesis.PutRecordInput{Data: d, StreamName: &s}
+	result, err := fanOutPutRecordInput(&input, keys)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	if *result.StreamName != s {
+		t.Errorf("expected stream name %s, was %s", s, *result.StreamName)
+	}
+	for i, e := range result.Records {
+		if bytes.Compare(e.Data, d) != 0 {
+			t.Errorf("expected data %v, was %s", d, e.Data)
+		}
+		expectedKey := keys[i]
+		if *e.ExplicitHashKey != *expectedKey {
+			t.Errorf("expected explicit hash key %s, was %s", *expectedKey, *e.ExplicitHashKey)
+		}
+	}
+}
+
+func TestFanOutPutRecordInputFailure(t *testing.T) {
+	s := "stream name"
+	num := "1234"
+	d := []byte("blob payload")
+	k1 := "key 1"
+	keys := []*string{&k1}
+	input := kinesis.PutRecordInput{Data: d, StreamName: &s, SequenceNumberForOrdering: &num}
+	_, err := fanOutPutRecordInput(&input, keys)
+	if err == nil {
+		t.Error("expected an error, was nil")
 	}
 }
