@@ -9,13 +9,13 @@ import (
 
 type kinesisDescribeStreamMock struct {
 	Index  int
-	err    error
+	Err    error
 	Shards [][]*kinesis.Shard
 }
 
 func (c *kinesisDescribeStreamMock) DescribeStream(input *kinesis.DescribeStreamInput) (*kinesis.DescribeStreamOutput, error) {
-	if c.err != nil {
-		return nil, c.err
+	if c.Err != nil {
+		return nil, c.Err
 	}
 	s := c.Shards[c.Index]
 	c.Index++
@@ -72,7 +72,7 @@ func TestGatherShards(t *testing.T) {
 
 	for _, tt := range tests {
 		name := "test stream"
-		input := kinesisDescribeStreamMock{Shards: tt.value, err: tt.err}
+		input := kinesisDescribeStreamMock{Shards: tt.value, Err: tt.err}
 		result, err := gatherShards(&input, &name)
 		if len(result) != len(tt.expected) {
 			t.Errorf("expected %v, was %v", tt.expected, result)
@@ -145,5 +145,78 @@ func TestFanOutPutRecordInputFailure(t *testing.T) {
 	_, err := fanOutPutRecordInput(&input, keys)
 	if err == nil {
 		t.Error("expected an error, was nil")
+	}
+}
+
+type kinesisPutRecordsMock struct {
+	kinesisDescribeStreamMock
+	PutRecordsInput *kinesis.PutRecordsInput
+}
+
+func (c *kinesisPutRecordsMock) PutRecords(input *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
+	c.PutRecordsInput = input
+	return nil, nil
+}
+
+func TestPutRecord(t *testing.T) {
+	var c kinesisPutRecordsMock
+	id1 := "shard ID 1"
+	id2 := "shard ID 2"
+	id3 := "shard ID 3"
+	id4 := "shard ID 4"
+	k1 := "shard key 1"
+	k2 := "shard key 2"
+	k3 := "shard key 3"
+	k4 := "shard key 4"
+	expectedKeys := []*string{&k1, &k2, &k3, &k4}
+	s1 := kinesis.Shard{ShardID: &id1, HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: &k1, EndingHashKey: &k1}}
+	s2 := kinesis.Shard{ShardID: &id2, HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: &k2, EndingHashKey: &k2}}
+	s3 := kinesis.Shard{ShardID: &id3, HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: &k3, EndingHashKey: &k3}}
+	s4 := kinesis.Shard{ShardID: &id4, HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: &k4, EndingHashKey: &k4}}
+	c.Shards = [][]*kinesis.Shard{[]*kinesis.Shard{&s1}, []*kinesis.Shard{&s2, &s3}, []*kinesis.Shard{&s4}}
+	stream := "stream name"
+	d := []byte("blob payload")
+	input := kinesis.PutRecordInput{Data: d, StreamName: &stream}
+	_, err := PutRecord(&c, &input)
+	if err != nil {
+		t.Errorf("unexpected error %s", err)
+	}
+	result := *c.PutRecordsInput
+	if *result.StreamName != stream {
+		t.Errorf("expected stream name %s, was %s", stream, *result.StreamName)
+	}
+	for i, e := range result.Records {
+		if bytes.Compare(e.Data, d) != 0 {
+			t.Errorf("expected data %v, was %s", d, e.Data)
+		}
+		expectedKey := expectedKeys[i]
+		if *e.ExplicitHashKey != *expectedKey {
+			t.Errorf("expected explicit hash key %s, was %s", *expectedKey, *e.ExplicitHashKey)
+		}
+	}
+}
+
+func TestPutRecordFailsGatherShards(t *testing.T) {
+	var c kinesisPutRecordsMock
+	error := errors.New("simulated gatherThreads error")
+	c.Err = error
+	s := "stream name"
+	if _, err := PutRecord(&c, &kinesis.PutRecordInput{StreamName: &s}); err != error {
+		t.Errorf("expected error %s, was %s", error, err)
+	}
+}
+
+func TestPutRecordFailsFanOutPutRecordInput(t *testing.T) {
+	var c kinesisPutRecordsMock
+	id1 := "shard ID 1"
+	k1 := "shard key 1"
+	s1 := kinesis.Shard{ShardID: &id1, HashKeyRange: &kinesis.HashKeyRange{StartingHashKey: &k1, EndingHashKey: &k1}}
+	c.Shards = [][]*kinesis.Shard{[]*kinesis.Shard{&s1}}
+	stream := "stream name"
+	num := "1234"
+	d := []byte("blob payload")
+	input := kinesis.PutRecordInput{Data: d, StreamName: &stream, SequenceNumberForOrdering: &num}
+	if _, err := PutRecord(&c, &input); err == nil {
+		t.Errorf("expected an error, was %s", err)
 	}
 }
